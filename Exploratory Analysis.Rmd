@@ -1,0 +1,257 @@
+---
+title: "Exploratory Data Analysis in R"
+author: "Maria Kaiktzoglou"
+output: pdf_document
+---
+
+\begin{center}
+  
+STUDENT ID : 03400052
+  
+EMAIL : makaiktzoglou@gmail.com
+  
+Dataset: phD salaries 2008-9
+\end{center}
+
+
+\pagebreak
+
+```{r include=F}
+knitr::opts_chunk$set(echo = T) 
+```
+
+```{r pressure, include=FALSE}
+library(ggplot2)
+library(dplyr)
+library(proj4)
+library(ggalt)
+library(ggExtra)
+
+options(scipen = 999)
+```
+**Reading the data, basic checks and first plots**
+
+We read the data into R and save the results to a data frame
+
+```{r}
+data <- read.table('/home/maria/Desktop/Desktop/Salaries.csv', header = T)
+head(data, 5)
+```
+
+We check that the data types are correct. They turn out to be. We also check whether there are any missing values. It turns out that there aren't any.
+
+```{r message=FALSE, warning=FALSE}
+data_frame(names(data), sapply(data, class))  
+cat('number of missing data / null values: ', sum(is.na(data)) + sum(is.null(data)))
+```
+**Distribution of sex, rank and discipline in the sample** 
+
+In the beginning it is useful to get some insight into the sample. Namely, how the 'sex', 'rank' and 'discipline' are distributed among the participants. 
+
+In the table below we see that the vast majority of the participants consists of males (~90%)
+
+```{r}
+sex_count <- dplyr::count(data, sex)
+sex_count['percent %']<- round(100*sex_count$n/sum(sex_count$n), 1)
+names(sex_count)[2]<- 'frequency'
+sex_count
+```
+
+Approximately 2/3 of the participants are professors, 1/6 are Associate Professors and 1/6 Assistant Professors.
+
+```{r, out.width = "50%", fig.align = "center"}
+df1 <- as.data.frame(table(data$rank))
+piepercent<- round(100*df1$Freq/sum(df1$Freq), 1)  # percentages
+df1['percent %']<-piepercent
+colnames(df1) <- c("rank", "frequency", 'percent %')
+df1
+pie <- ggplot(df1, aes(x = "", y=frequency, fill = factor(rank))) + geom_bar(width = 1, stat = "identity") + theme(axis.line = element_blank(), plot.title = element_text(hjust=0.5)) + labs(fill="rank", x=NULL, y=NULL,  title="Pie Chart of Ranks", caption = 'Figure 1')+ theme(plot.caption = element_text(hjust=0)
+  )
+pie + coord_polar(theta = 'y')
+```
+
+Next, we see that there are slightly more participants who come from applied departments compared to theoretical departments. It can be seen that it is males who account for this difference. 
+
+```{r, out.width = "75%", fig.align = "center"}
+disc_count <- dplyr::count(data, discipline)
+disc_count['percent %']<- round(100*disc_count$n/sum(disc_count$n), 1)
+names(disc_count)[2]<- 'frequency'
+disc_count
+
+ggplot(data, aes(x = discipline, fill=sex)) + geom_bar(position='dodge')+labs(title= "Disciplines Barchart", subtitle = "A: theoretical, B: applied", caption='Figure 2')+ theme_grey() +theme(plot.caption = element_text(hjust=0))
+```
+
+
+```{r out.width = "75%", fig.align = "center"}
+rank_count <- dplyr::count(data,rank)
+rank_count['overall percent']<- round(100*rank_count$n/sum(rank_count$n), 1)
+names(rank_count)[2]<- 'frequency'
+tmp1<-dplyr::count(data, rank,sex)[dplyr::count(data, rank,sex)$sex=='Male',][3]
+rank_count['males percent']<-round(100*tmp1/sum(rank_count['frequency']),1)
+tmp1<-dplyr::count(data, rank,sex)[dplyr::count(data, rank,sex)$sex=='Female',][3]
+rank_count['females percent']<-round(100*tmp1/sum(rank_count['frequency']),1)
+rank_count[c(1,3,4,5)]
+ggplot(data, aes(x = rank, fill=sex)) + geom_bar(position='fill')+labs(title = "Proportion of males/females in each rank", caption='Figure 3') + ylab('percent')  + theme_gray()+theme(plot.caption = element_text(hjust=0))
+```
+
+An important outcome from the above is that the 'Professors' rank is mainly occupied by males. We remind ourselves that females take up 10% of the sample, and while they occupy 16% and 17% of the 'Associate Professors' and 'Assistant Professors' respectively, they occupy merely 6% of the 'Professors' positions. 
+
+**Salary plots with respect to rank**
+
+It is important now to examine how salary relates to rank. The following boxplots shed some light to this question as we can see that the median as well as the range increase as the rank increases (e.g. the higer the rank the higher the median salary and the range of salary). It is worth noticing that there exist outliers in the 'Professors' salary. 
+
+```{r out.width = "75%", fig.align = "center"}
+g <- ggplot(data, aes(rank, salary))
+g + geom_boxplot(varwidth=T, fill = 'darkseagreen3') + theme(axis.text.x = element_text(angle=65, vjust=0.6))+ labs(title="Salary groupped by rank",x="Rank", y="Salary", caption='Figure 4') + theme_dark() +theme(plot.caption = element_text(hjust=0))
+```
+
+We can also view in the table and the lollipop chart below the average salaries of each rank, split by sex.
+
+```{r out.width = "75%", fig.align = "center"}
+salary_data <- aggregate(data$salary, by=list(data$rank, data$sex),FUN=mean) # aggregate/group 
+colnames(salary_data) <- c("rank", 'sex',"salary") # change column names
+salary_data <- salary_data[order(salary_data$salary), ] #
+salary_data
+
+theme_set(theme_bw())
+ggplot(salary_data, aes(x=rank, y=salary, color=sex)) + geom_point(size=3) + geom_segment(aes(x=rank, xend=rank, y=0, yend=salary)) + labs(title="Average salary for each rank - males and females", caption = 'Figure 5') + theme(axis.text.x = element_text(angle=65, vjust=0.6)) + theme_light() +theme(plot.caption = element_text(hjust=0))
+```
+
+We can detect small yet clear differences in the average salary between males and females for every rank. We come back to boxplots, this time creating a distinct boxplot for every sex and every rank that will contain more information about the distribution of the observations (quantile range and outliers).
+
+```{r out.width = "75%", fig.align = "center"}
+g <- ggplot(data, aes(rank, salary))
+g + geom_boxplot(aes(fill=sex)) +
+theme(axis.text.x = element_text(angle=65, vjust=0.6))+ labs(title="Boxplots for salary groupped by rank", subtitle ='one boxplot for each sex', x="Rank", y="Salary", caption='Figure 6') +theme_dark() +theme(plot.caption = element_text(hjust=0))
+```
+
+Comments: 
+
+1. In all three ranks the median salary of males is higher than this of females
+
+2. The range of salaries in Associate Professors is bigger for females and skewed to lower salary values. The range of salary in Assistant Professors is bigger for males and skewed to higher salary values. The respective range in Professors is also bigger for males.
+
+3. There are outlying values -both high and low- in female Assistant Professors' salary. There are high outlying values in male Professors' salary.
+
+
+Boxplots are not informative when it comes to how observations are distributed within the quantiles; to get some insight we use diverging bars. We constructed four pairs of diverging bars; the first is about salary regardless the rank, and the other three are for a specific rank. We normalized the salary so that the mean is 0, as it can be seen. The green area at the right of the mean represents the number of males/females whose salary is above the mean, while the red area at the left of the mean represents the number of males/females whose salary is below the mean. 
+
+```{r out.width = "75%", fig.align = "center"}
+# for professors
+data$salary_z <- round((data$salary - mean(data$salary))/sd(data$salary), 2) # normal. salary
+data$salary_type <- ifelse(data$salary_z < 0, "below", "above") # above / below average
+data <- data[order(data$salary_z), ] 
+
+ggplot(data, aes(x=sex, y=salary_z, label=salary_z)) +
+geom_bar(stat='identity', aes(fill=salary_type), width=.5) + scale_fill_manual(name="USD",
+labels = c("Above Average", "Below Average"), values = c("above"="#00ba38", "below"="#f8766d")) + labs(caption='Figure 7', subtitle="Normalised salary", y = 'Salary', title= "Diverging Bars for all ranks") + coord_flip() + theme_dark() +theme(plot.caption = element_text(hjust=0))
+
+data1<-data[data$rank=='Prof',]
+data1$salary_z <- round((data1$salary - mean(data1$salary))/sd(data1$salary), 2)
+data1$salary_type <- ifelse(data1$salary_z < 0, "below", "above") 
+data1 <- data1[order(data1$salary_z), ]
+
+ggplot(data1, aes(x=sex, y=salary_z, label=salary_z)) + geom_bar(stat='identity', aes(fill=salary_type), width=.5) + scale_fill_manual(name="USD", labels = c("Above Average", "Below Average"), values = c("above"="#00ba38", "below"="#f8766d")) + labs(caption='Figure 8', subtitle="Normalised salary", y = 'Professors Salary', title= "Diverging Bars for Professors") + coord_flip() + theme_dark() +theme(plot.caption = element_text(hjust=0))
+
+# For Associate Professors
+data1<-data[data$rank=='AssocProf',]
+data1$salary_z <- round((data1$salary -
+mean(data1$salary))/sd(data1$salary), 2)
+data1$salary_type <- ifelse(data1$salary_z < 0, "below", "above") 
+data1 <- data1[order(data1$salary_z), ] 
+
+ggplot(data1, aes(x=sex, y=salary_z, label=salary_z)) + geom_bar(stat='identity', aes(fill=salary_type), width=.5) + scale_fill_manual(name="USD", labels = c("Above Average", "Below Average"), values = c("above"="#00ba38", "below"="#f8766d")) + labs(caption='Figure 9', subtitle="Normalised salary", y = 'Associate Professors Salary', title= "Diverging Bars for Associate Professors") + coord_flip() + theme_dark()+theme(plot.caption =element_text(hjust=0))
+
+# For Assistant Professors
+data1<-data[data$rank=='AsstProf',]
+data1$salary_z <- round((data1$salary - mean(data1$salary))/sd(data1$salary), 2)
+data1$salary_type <- ifelse(data1$salary_z < 0, "below", "above") 
+data1 <- data1[order(data1$salary_z), ] 
+
+ggplot(data1, aes(x=sex, y=salary_z, label=salary_z)) + geom_bar(stat='identity', aes(fill=salary_type), width=.5) + scale_fill_manual(name="USD", labels = c("Above Average", "Below Average"), values = c("above"="#00ba38", "below"="#f8766d")) + labs(caption='Figure 11', subtitle="Normalised salary",y = 'Assistant Professors Salary', title= "Diverging Bars for Assistant Professors") + coord_flip() + theme_dark()+theme(plot.caption= element_text(hjust=0))
+```
+
+In all cases the green area (above mean) is bigger than the red area (below mean) for the males and vice versa for the females. This means that the average salary is lifted by males' salaries that tend to be higher than those of females. 
+
+**Salary plots with respect to years of service/since phd**
+
+Let's look at the years of service factor and how it relates to sex and salary. We group the data by years of service and calculate the average salary for each value of this variable (e.g. average salary for 1 year of service, for 2 years of service etc.). This is done for each sex separately as well as for both sexes together.
+
+```{r out.width = "75%", fig.align = "center"}
+data_select <- data[(data$yrs.service > 50) & (data$sex=='Male') & (data$salary>150000),]
+
+require(gridExtra)
+gr_ser<-group_by(data, yrs.service, sex)%>%summarise(mean_salary=mean(salary))
+gr_ser2<-group_by(data, yrs.service)%>%summarise(mean_salary=mean(salary)) 
+
+plt1<-ggplot(gr_ser, aes(x = yrs.service, y = mean_salary, color=sex)) + geom_point()+geom_smooth() + theme_dark()+labs(caption='Figure 12', title = "Years of service VS salary", subtitle = 'sexes shown separately') +xlab('years of service') + ylab('salary') +theme(plot.caption = element_text(hjust=0))
+plt2<-ggplot(gr_ser2, aes(x = yrs.service, y = mean_salary)) + geom_point()+geom_smooth() + theme_dark()+labs(caption='Figure 13', title = "Years of service VS salary", subtitle = 'sexes together')+ xlab('years of service') + ylab('salary') +geom_encircle(aes(x=yrs.service, y=salary),
+data=data_select,color="red",size=1,expand=0.001) +theme(plot.caption = element_text(hjust=0))
+grid.arrange(plt1, plt2, ncol=2)
+```
+
+One thing to note is that females have been working in universities far fewer years than males. 
+The trend that appears (both sexes plot) is noteworthy, since we can see it is descending. At the right, the line is lifted by an extreme outlying value (circled). We are doing one more scatterplot with distinct colors for each rank. 
+
+```{r out.width = "75%", fig.align = "center"}
+ggplot(data, aes(x = yrs.service, y = salary, color = rank)) + geom_point() + theme_dark() +geom_smooth(method='lm') +xlab('years of service') + ylab('salary') + labs(title='years of service VS salary', caption='Figure 14') +theme(plot.caption = element_text(hjust=0))
+```
+
+Interpretation: Associate Professors account more for this descending trend. There are some with many years of service but whose salary does not grow along with the years. We also notice that Professors' salary presents a descending trend - and a few high outliers- when the years of service are more than 30. In other words, older professors get less well paid than younger professors. 
+
+We continue with the same scatterplots - salary VS years of service/since phd - but now for professors and Associate professors separately. We exclude Assistant Professors due to little data. 
+
+```{r out.width = "75%", fig.align = "center"}
+require(gridExtra)
+# For Professors - Service years
+gr_srv_prof<-group_by(data[data$rank=='Prof',], yrs.service, sex)%>%summarise(mean_salary_professors=mean(salary))
+plt1<-ggplot(gr_srv_prof, aes(x = yrs.service, y = mean_salary_professors, color=sex)) + geom_point()+geom_smooth() + theme_dark() +xlab('years of service') + ylab('Professors Mean Salary')+labs(subtitle='years of service VS salary - Professors', caption='Figure 15')+theme(plot.caption = element_text(hjust=0))
+# For Associate Professors - Service years
+gr_srv_AssocProf<-group_by(data[data$rank=='AssocProf',], yrs.service, sex)%>%summarise(mean_salary_AssocProfessors=mean(salary))
+plt2<-ggplot(gr_srv_AssocProf, aes(x = yrs.service, y = mean_salary_AssocProfessors, color=sex)) + geom_point()+geom_smooth() + theme_dark() +xlab('years of service') + ylab('Associate Professors Mean Salary')+labs(subtitle='years of service VS salary - Assistant Professors', caption='Figure 16')+theme(plot.caption = element_text(hjust=0))
+grid.arrange(plt1, plt2, ncol=2)
+
+# For Professors - phd years
+gr_phd_Prof<-group_by(data[data$rank=='Prof',], yrs.since.phd, sex)%>%summarise(mean_salary_Prof=mean(salary))
+plt3<-ggplot(gr_phd_Prof, aes(x = yrs.since.phd, y = mean_salary_Prof, color=sex)) + geom_point()+geom_smooth() + theme_dark() + xlab('years since phd') + ylab('Professors Mean Salary') + labs(subtitle='years since phd VS salary - Professors', caption='Figure 17')+theme(plot.caption = element_text(hjust=0))
+# For Associate Professors - phd years
+gr_phd_AssocProf<-group_by(data[data$rank=='AssocProf',], yrs.since.phd, sex)%>%summarise(mean_salary_AssocProf=mean(salary))
+plt4<-ggplot(gr_phd_AssocProf, aes(x = yrs.since.phd, y = mean_salary_AssocProf, color=sex)) + geom_point()+geom_smooth() + theme_dark() + xlab('years since phd') + ylab('Associate Professors Mean Salary')+labs(subtitle='years since phd VS salary - Assistant Professors', caption='Figure 18')+theme(plot.caption = element_text(hjust=0))
+grid.arrange(plt3, plt4, ncol=2)
+```
+
+Regarding the male professors, we see a linear trend whose slope somehow drops after the value 30 in years of service, which comes in accordance with the scatterplot before. We should ignore the uprise in the slope in the end as it is induced by a high outlier. At the same time, female professors seem to have an increase in salary with the passage of years, although the data is not sufficient and there is a non negligible variance.
+
+When it comes to Associate Professors, we notice again a descending trend, which comes in accordance with our previous observations. We would rather not make any inferences for females(not a specific trend, little data)
+
+Lastly, we are plotting histograms of salary for professors and associate professors (not assistant professors due to little data). 
+
+```{r out.width = "75%", fig.align = "center"}
+#require(gridExtra)
+g1 <-ggplot(data[data$rank=='Prof',], aes(salary, color=sex)) +scale_fill_brewer(palette = "Spectral") +  geom_histogram(aes(fill=sex), position = 'dodge', bins=30) +  labs(title='Histogram of Professors Salary', caption='figure 19')+theme(plot.caption = element_text(hjust=0))+theme_dark()
+g1
+g2 <- ggplot(data[data$rank=='AssocProf',], aes(salary,color=sex))+ geom_histogram(aes(fill=sex), position = 'dodge', bins=30)+scale_fill_brewer(palette = "Spectral") +  labs(title='Histogram of Associate Professors Salary', caption='figure 20')+theme(plot.caption=element_text(hjust=0))+theme_dark()
+g2
+
+#grid.arrange(g1, g2, ncol=2)
+```
+
+Most female professors receive a salary that ranges between 120,000 and 160,000 USD, with a few receiving 90,000 USD. We could say the distribution tends to have a right skewness. Male professors' salary ranges mostly between 90,000 and 200,000 USD. The distribution could be described as being in between right skewed and bimodal -in a pretty lenient statistic description!-. 
+
+Concerning associate professors, females' salary is either in the range 63,000-77,000 USD or 103,000-110,000 USD, a quite significant discrepancy of whose causes we are unaware. At the same time, around 80% of males' salaries range between 80,000 and 108,000 USD, the rest receivning either more or less. There is also significant variance. 
+
+These histograms would be better understood if accompaigned with scatterplots, however, due to our constraints in the size of this analysis, we will not do them. 
+
+**Conclusions**
+
+We can reach some final conclusions after this exploratory analysis. 
+
+First of all, there is a small yet clear difference between males' and females' salary. Males' average salary is higher. The same holds for the median salary. However, the distribution of the salaries within the quantiles is not uniform at all neither does it follow some particular pattern. Diverging barcharts showed that most females get lower (below average) salaries and other plots showed that there are some females who get high salaries (outliers) which results in an increased mean. Professors get higher salary and there are more male professors than female professors. Furthermore, females have significantly fewer years of service/since phd, something that indicates that females have only recently joined this work field. Although an index of gender discrimination in jobs is the rank/position, something that goes together with the amount of salary, this goes beyond the scope of this analysis, which focuses on differences in the salary. We cannot infer a specific behaviour when it comes to females' salary with respect to their years of service/since phd. For males, there seems to be a slightly negative correlation, e.g. older males are paid less than younger males. Since there is less data from people with many years of service/since phd, hence we choose to be cautious and limited in our comments. 
+
+
+
+
+
+
+
+
